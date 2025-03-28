@@ -13,21 +13,37 @@ predicate isElementInThreadSafeAnnotatedClass(Class c, Field f) {
   f = c.getAField()
 }
 
-predicate isNotSafelyPublished(Field f) {
-  not (
-    f.isFinal() or
-    f.isStatic() or
+
+
+predicate isSafelyPublished(Field f) {
+    f.isFinal() or  // what about non-primitive types
+    f.isStatic() or 
     f.isVolatile() or
-    isThreadSafeType(f.getType()) or
+    isThreadSafeType(f.getType()) or 
     isDefaultValue(f)
-  )
 }
+
+
 
 // What about other datatypes
 // https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html -- See default values
 // And what about arrays?
+
+/*
+  *
+  * int/long x;
+  * * int/long x = 3; not ok
+
+  public c(a) {
+    x = 0;
+    x = 3; not ok
+    x = a; not ok
+  }
+
+*/
+
 predicate isDefaultValue(Field f) {
-  f.getType().hasName("int") and f.getAnAssignedValue().toString() = "0"
+  f.getType().hasName(["int", "long"]) and f.getAnAssignedValue().toString() = "0"
   or
   f.getType().hasName("boolean") and f.getAnAssignedValue().toString() = "false"
   or
@@ -37,7 +53,7 @@ predicate isDefaultValue(Field f) {
 from Field f, Class c
 where
   isElementInThreadSafeAnnotatedClass(c, f) and
-  isNotSafelyPublished(f)
+  not isSafelyPublished(f)
 select f, "This field is not safely published"
 /*
  * *** TODO: Detected false positives to fix ***

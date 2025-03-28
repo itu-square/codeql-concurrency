@@ -21,10 +21,9 @@ predicate isFieldinThreadSafeAnnotatedClass(ClassAnnotatedAsThreadSafe c, Field 
 
 from Field f, ClassAnnotatedAsThreadSafe c
 where
-  isFieldinThreadSafeAnnotatedClass(c, f) and
-  isNotPrivateField(f) and
+  isFieldinThreadSafeAnnotatedClass(c, f) and  
   isNotFinal(f) and // final fields do not change
   // not f.isProtected() and // I believe that protected fields are also dangerous
   // isNotVolatile(f) and // volatile fields cannot cause data races, but it is weird to allow changes. What should we do?
-  not c.isPrivate() // redundant?
+  isNotPrivateField(f)
 select f, "Potentially escaping field"
