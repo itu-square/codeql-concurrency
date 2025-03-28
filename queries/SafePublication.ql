@@ -9,7 +9,7 @@ import java
 import ConflictingAccess
 
 predicate isElementInThreadSafeAnnotatedClass(Class c, Field f) {
-  c.getAnAnnotation().toString() = "ThreadSafe" and
+  c = annotatedAsThreadSafe() and
   f = c.getAField()
 }
 
