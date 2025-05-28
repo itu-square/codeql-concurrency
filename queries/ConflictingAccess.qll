@@ -1,21 +1,50 @@
+/**
+ * Provides classes and predicates for detecting conflicting accesses in the sense of the Java Memory Model.
+ */
+
 import java
 import Concurrency
 
+/**
+ * Holds if `t` is the type of a lock.
+ * Currently a crude test of the type name.
+ */
 pragma[inline]
 predicate isLockType(Type t) { t.getName().matches("%Lock%") }
 
+/**
+ * This module provides predicates, chiefly `locallyMonitors`, to check if a given expression is synchronized on a specific monitor.
+ */
 module Monitors {
+  /**
+   * A monitor is any object that is used to synchronize access to a shared resource.
+   * This includes locks as well as variables used in synchronized blocks (including `this`).
+   */
   newtype TMonitor =
+    /** Either a lock or a variable used in a synchronized block. */
     TVariableMonitor(Variable v) { isLockType(v.getType()) or locallySynchronizedOn(_, _, v) } or
+    /** An instance reference used as a monitor. */
     TInstanceMonitor(RefType thisType) { locallySynchronizedOnThis(_, thisType) } or
+    /** A class used as a monitor. */
     TClassMonitor(RefType classType) { locallySynchronizedOnClass(_, classType) }
 
+  /**
+   * A monitor is any object that is used to synchronize access to a shared resource.
+   * This includes locks as well as variables used in synchronized blocks (including `this`).
+   */
   class Monitor extends TMonitor {
+    /** Gets the location of this monitor. */
     abstract Location getLocation();
 
+    /** Gets a textual representation of this element. */
     string toString() { result = "Monitor" }
   }
 
+  /**
+   * A variable used as a monitor.
+   * The variable is either a lock or is used in a synchronized block.
+   * E.g `synchronized (m) { ... }` or `m.lock();`
+   */
   class VariableMonitor extends Monitor, TVariableMonitor {
     Variable v;
 
@@ -25,9 +54,14 @@ module Monitors {
 
     override string toString() { result = "VariableMonitor(" + v.toString() + ")" }
 
+    /** Gets the variable being used as a monitor. */
     Variable getVariable() { result = v }
   }
 
+  /**
+   * An instance reference used as a monitor.
+   * Either via `synchronized (this) { ... }` or by marking a non-static method as `synchronized`.
+   */
   class InstanceMonitor extends Monitor, TInstanceMonitor {
     RefType thisType;
 
@@ -37,9 +71,14 @@ module Monitors {
 
     override string toString() { result = "InstanceMonitor(" + thisType.toString() + ")" }
 
+    /** Gets the instance reference being used as a monitor. */
     RefType getThisType() { result = thisType }
   }
 
+  /**
+   * A class used as a monitor.
+   * This is achieved by marking a static method as `synchronized`.
+   */
   class ClassMonitor extends Monitor, TClassMonitor {
     RefType classType;
 
@@ -49,9 +88,11 @@ module Monitors {
 
     override string toString() { result = "ClassMonitor(" + classType.toString() + ")" }
 
+    /** Gets the class being used as a monitor. */
     RefType getClassType() { result = classType }
   }
 
+  /** Holds if the expression `e` is synchronized on the monitor `m`. */
   predicate locallyMonitors(Expr e, Monitor m) {
     exists(Variable v | v = m.(VariableMonitor).getVariable() |
       locallyLockedOn(e, v)
@@ -64,6 +105,7 @@ module Monitors {
     locallySynchronizedOnClass(e, m.(ClassMonitor).getClassType())
   }
 
+  /** Holds if `localLock` refers to `lock`. */
   predicate represents(Field lock, Variable localLock) {
     isLockType(lock.getType()) and
     (
@@ -90,9 +132,11 @@ module Monitors {
   }
 }
 
+/** Provides predicates, chiefly `isModifying`, to check if a given expression modifies a shared resource. */
 module Modification {
   import semmle.code.java.dataflow.FlowSummary
 
+  /** Holds if the field access `a` modifies a shared resource. */
   predicate isModifying(FieldAccess a) {
     a.isVarWrite()
     or
@@ -101,6 +145,7 @@ module Modification {
     exists(ArrayAccess aa, Assignment asa | aa.getArray() = a | asa.getDest() = aa)
   }
 
+  /** Holds if the call `c` modifies a shared resource. */
   predicate isModifyingCall(Call c) {
     exists(SummarizedCallable sc, string output, string prefix | sc.getACall() = c |
       sc.propagatesFlow(_, output, _, _) and
@@ -110,42 +155,51 @@ module Modification {
   }
 }
 
+/** Holds if the class is annotated as `@ThreadSafe`. */
 Class annotatedAsThreadSafe() { result.getAnAnnotation().getType().getName() = "ThreadSafe" }
 
+/** Holds if the type `t` is thread-safe. */
 predicate isThreadSafeType(Type t) {
-  t.getName().matches(["Atomic%", "Concurrent%"])
+  t.getErasure().getName().matches(["Atomic%", "Concurrent%"])
   or
-  t.getName() in [
-      "CopyOnWriteArraySet", "BlockingQueue", "ThreadLocal",
-      // this is a method that returns a thread-safe version of the collection used as parameter
-      "synchronizedMap", "Executor", "ExecutorService", "CopyOnWriteArrayList",
-      "LinkedBlockingDeque", "LinkedBlockingQueue", "CompletableFuture"
-    ]
+  t.getErasure().getName() in ["ThreadLocal"]
+  or
+  // Anything in `java.itul.concurrent` is thread safe.
+  // See https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/package-summary.html#MemoryVisibility
+  t.getTypeDescriptor().matches("Ljava/util/concurrent/%;")
   or
   t = annotatedAsThreadSafe()
 }
 
-// Could be inlined
-predicate exposed(FieldAccess a) {
-  a.getField() = annotatedAsThreadSafe().getAField() and
-  not a.getField().isVolatile() and
-  // field is not a lock
-  not isLockType(a.getField().getType()) and
-  // field is not thread-safe
-  not isThreadSafeType(a.getField().getType()) and
-  not isThreadSafeType(a.getField().getInitializer().getType()) and
-  // access is not the initializer of the field
-  not a.(VarWrite).getASource() = a.getField().getInitializer() and
-  // access not in a constructor
-  not a.getEnclosingCallable() = a.getField().getDeclaringType().getAConstructor() and
-  // not a field on a local variable
-  not a.getQualifier+().(VarAccess).getVariable() instanceof LocalVariableDecl and
-  // not the variable mention in a synchronized statement
-  not a = any(SynchronizedStmt sync).getExpr()
+/** Holds if the expression `e` is a thread-safe initializer. */
+predicate isThreadSafeInitializer(Expr e) {
+  e.(Call).getCallee().getQualifiedName().matches("java.util.Collections.synchronized%")
 }
 
+/**
+ * A field access that is exposed to potential data races.
+ * We require the field to be in a class that is annotated as `@ThreadSafe`.
+ */
 class ExposedFieldAccess extends FieldAccess {
-  ExposedFieldAccess() { exposed(this) }
+  ExposedFieldAccess() {
+    this.getField() = annotatedAsThreadSafe().getAField() and
+    not this.getField().isVolatile() and
+    // field is not a lock
+    not isLockType(this.getField().getType()) and
+    // field is not thread-safe
+    not isThreadSafeType(this.getField().getType()) and
+    not isThreadSafeType(this.getField().getInitializer().getType()) and
+    // the initializer guarantees thread safety
+    not isThreadSafeInitializer(this.getField().getInitializer()) and
+    // access is not the initializer of the field
+    not this.(VarWrite).getASource() = this.getField().getInitializer() and
+    // access not in a constructor
+    not this.getEnclosingCallable() = this.getField().getDeclaringType().getAConstructor() and
+    // not a field on a local variable
+    not this.getQualifier+().(VarAccess).getVariable() instanceof LocalVariableDecl and
+    // not the variable mention in a synchronized statement
+    not this = any(SynchronizedStmt sync).getExpr()
+  }
 
   // LHS of assignments are excluded from the control flow graph,
   // so we use the control flow node for the assignment itself instead.
@@ -159,6 +213,7 @@ class ExposedFieldAccess extends FieldAccess {
   }
 }
 
+/** Holds if the location of `a` is strictly before the location of `b`. */
 pragma[inline]
 predicate orderedLocations(Location a, Location b) {
   a.getStartLine() < b.getStartLine()
@@ -167,9 +222,14 @@ predicate orderedLocations(Location a, Location b) {
   a.getStartColumn() < b.getStartColumn()
 }
 
+/**
+ * A class annotated as `@ThreadSafe`.
+ * Provides predicates to check for concurrency issues.
+ */
 class ClassAnnotatedAsThreadSafe extends Class {
   ClassAnnotatedAsThreadSafe() { this = annotatedAsThreadSafe() }
 
+  /** Holds if `a` and `b` are conflicting accesses to the same field and not monitored by the same monitor. */
   predicate unsynchronised(ExposedFieldAccess a, ExposedFieldAccess b) {
     this.conflicting(a, b) and
     this.publicAccess(_, a) and
@@ -180,6 +240,7 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
+  /** Holds if `a` is the earliest write to its field that is unsynchronized with `b`. */
   predicate unsynchronised_normalized(ExposedFieldAccess a, ExposedFieldAccess b) {
     this.unsynchronised(a, b) and
     // Eliminate double reporting by making `a` the earliest write to this field
@@ -192,11 +253,15 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
+  /**
+   * Holds if `a` and `b` are unsynchronized and both publicly accessible
+   * as witnessed by `witness_a` and `witness_b`.
+   */
   predicate witness(ExposedFieldAccess a, Expr witness_a, ExposedFieldAccess b, Expr witness_b) {
     this.unsynchronised_normalized(a, b) and
     this.publicAccess(witness_a, a) and
     this.publicAccess(witness_b, b) and
-    // avoid doulbe reporting
+    // avoid double reporting
     not exists(Expr better_witness_a | this.publicAccess(better_witness_a, a) |
       orderedLocations(better_witness_a.getLocation(), witness_a.getLocation())
     ) and
@@ -233,17 +298,22 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
+  /** Holds if `a` can be reached by a path from a public method, and all such paths are monitored by `monitor`. */
   predicate monitors(ExposedFieldAccess a, Monitors::Monitor monitor) {
-    // forall(Expr e | this.publicAccess(e, a) | Monitors::locallyMonitors(e, m))
     forex(Method m | this.providesAccess(m, _, a) and m.isPublic() |
       this.monitorsVia(m, a, monitor)
     )
   }
 
+  /** Holds if `a` can be reached by a path from a public method and `e` is the expression in that method that stsarts the path. */
   predicate publicAccess(Expr e, ExposedFieldAccess a) {
     exists(Method m | m.isPublic() | this.providesAccess(m, e, a))
   }
 
+  /**
+   * Holds if a call to method `m` can cause an access of `a` and `e` is the expression inside `m` that leads to that access.
+   * `e` will either be `a` itself or a method call that leads to `a`.
+   */
   predicate providesAccess(Method m, Expr e, ExposedFieldAccess a) {
     m = this.getAMethod() and
     (
@@ -257,10 +327,22 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
+  // NOTE:
+  // In order to deal with loops in the call graph, we compute the strongly connected components (SCCs).
+  // We only wish to do this for the methods that can lead to exposed field accesses.
+  // Given a field access `a`, we can consider a "call graph of interest", a sub graph of the call graph
+  // that only contains methods that lead to an access of `a`. We call this "the call graph induced by `a`".
+  // We can then compute the SCCs of this graph, yielding the SCC graph induced by `a`.
+  //
+  /**
+   * Holds if a call to method `m` can cause an access of `a` by `m` calling `callee`.
+   * This is an edge in the call graph induced by `a`.
+   */
   predicate accessVia(Method m, ExposedFieldAccess a, Method callee) {
     exists(MethodCall c | this.providesAccess(m, c, a) | callee = c.getCallee())
   }
 
+  /** Holds if `m` can reach `reached` by a path in the call graph induced by `a`. */
   predicate accessReach(Method m, ExposedFieldAccess a, Method reached) {
     m = this.getAMethod() and
     reached = this.getAMethod() and
@@ -273,9 +355,17 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
-  predicate repSCC(Method rep, ExposedFieldAccess a, Method m) {
+  /**
+   * Holds if `rep` is a representative of the SCC containing `m` in the call graph induced by `a`.
+   * This only assigns representatives to methods involved in loops.
+   * To get a representative of any method, use `repScc`.
+   */
+  predicate repInLoopScc(Method rep, ExposedFieldAccess a, Method m) {
+    // `rep` and `m` are in the same SCC
     this.accessReach(rep, a, m) and
     this.accessReach(m, a, rep) and
+    // `rep` is the representative of the SCC
+    // that is, the earliest in the source code
     forall(Method alt_rep |
       rep != alt_rep and
       this.accessReach(alt_rep, a, m) and
@@ -285,19 +375,27 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
-  predicate repSCCReflexive(Method rep, ExposedFieldAccess a, Method m) {
-    this.repSCC(rep, a, m)
+  /** Holds if `rep` is a representative of the SCC containing `m` in the call graph induced by `a`. */
+  predicate repScc(Method rep, ExposedFieldAccess a, Method m) {
+    this.repInLoopScc(rep, a, m)
     or
+    // If `m` is in the call graph induced by `a` and did not get a representative from `repInLoopScc`,
+    // it is represented by itself.
     m = this.getAMethod() and
     this.providesAccess(m, _, a) and
-    not exists(Method r | this.repSCC(r, a, m)) and
+    not this.repInLoopScc(_, a, m) and
     rep = m
   }
 
-  predicate callEdgeSCC(Method callerRep, ExposedFieldAccess a, MethodCall c, Method calleeRep) {
+  /**
+   * Holds if `c` is a call from the SCC represented by `callerRep` to the (different) SCC represented by `calleeRep`.
+   * This is an edge in the SCC graph induced by `a`.
+   */
+  predicate callEdgeScc(Method callerRep, ExposedFieldAccess a, MethodCall c, Method calleeRep) {
     callerRep != calleeRep and
     exists(Method caller, Method callee |
-      this.repSCCReflexive(callerRep, a, caller) and this.repSCCReflexive(calleeRep, a, callee)
+      this.repScc(callerRep, a, caller) and
+      this.repScc(calleeRep, a, callee)
     |
       this.accessVia(caller, a, callee) and
       c.getEnclosingCallable() = caller and
@@ -305,35 +403,39 @@ class ClassAnnotatedAsThreadSafe extends Class {
     )
   }
 
-  predicate providesAccessSCC(Method rep, Expr e, ExposedFieldAccess a) {
+  /**
+   * Holds if the SCC represented by `rep` can cause an access to `a` and `e` is the expression that leads to that access.
+   * `e` will either be `a` itself or a method call that leads to `a` via a different SCC.
+   */
+  predicate providesAccessScc(Method rep, Expr e, ExposedFieldAccess a) {
     rep = this.getAMethod() and
-    exists(Method m | this.repSCCReflexive(rep, a, m) |
+    exists(Method m | this.repScc(rep, a, m) |
       a.getEnclosingCallable() = m and
       e = a
       or
-      exists(MethodCall c, Method calleeRep | this.callEdgeSCC(rep, a, c, calleeRep) | e = c)
+      exists(MethodCall c | this.callEdgeScc(rep, a, c, _) | e = c)
     )
   }
 
-  predicate monitorsViaSCC(Method rep, ExposedFieldAccess a, Monitors::Monitor monitor) {
+  /** Holds if all paths from `rep` to `a` are monitored by `monitor`. */
+  predicate monitorsViaScc(Method rep, ExposedFieldAccess a, Monitors::Monitor monitor) {
     rep = this.getAMethod() and
-    this.providesAccessSCC(rep, _, a) and
-    (
-      this.repSCCReflexive(rep, a, a.getEnclosingCallable())
-      implies
-      Monitors::locallyMonitors(a, monitor)
-    ) and
-    forall(MethodCall c, Method calleeRep | this.callEdgeSCC(rep, a, c, calleeRep) |
+    this.providesAccessScc(rep, _, a) and
+    // If we are in an SCC that can access `a`, the access must be monitored locally
+    (this.repScc(rep, a, a.getEnclosingCallable()) implies Monitors::locallyMonitors(a, monitor)) and
+    // Any call towards `a` must either be monitored or guarantee that the access is monitored
+    forall(MethodCall c, Method calleeRep | this.callEdgeScc(rep, a, c, calleeRep) |
       Monitors::locallyMonitors(c, monitor)
       or
-      this.monitorsViaSCC(calleeRep, a, monitor)
+      this.monitorsViaScc(calleeRep, a, monitor)
     )
   }
 
+  /** Holds if all paths from `m` to `a` are monitored by `monitor`. */
   predicate monitorsVia(Method m, ExposedFieldAccess a, Monitors::Monitor monitor) {
     exists(Method rep |
-      this.repSCCReflexive(rep, a, m) and
-      this.monitorsViaSCC(rep, a, monitor)
+      this.repScc(rep, a, m) and
+      this.monitorsViaScc(rep, a, monitor)
     )
   }
 }
