@@ -119,7 +119,12 @@ predicate isThreadSafeType(Type t) {
       "CopyOnWriteArraySet", "BlockingQueue", "ThreadLocal",
       // this is a method that returns a thread-safe version of the collection used as parameter
       "synchronizedMap", "Executor", "ExecutorService", "CopyOnWriteArrayList",
-      "LinkedBlockingDeque", "LinkedBlockingQueue", "CompletableFuture"
+      "ScheduledExecutorService",
+      "LinkedBlockingDeque", "LinkedBlockingQueue", "CompletableFuture",
+      // These ones are part of com.google.common.collect (not standard library)
+      "ImmutableMap",
+      // These ones are part of the com.google.common.util.concurrent library (not standard library)
+      "ListenableFuture", "SettableFuture"
     ]
   or
   t = annotatedAsThreadSafe()

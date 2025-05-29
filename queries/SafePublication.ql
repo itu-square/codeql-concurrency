@@ -14,7 +14,7 @@ predicate isElementInThreadSafeAnnotatedClass(Class c, Field f) {
 }
 
 predicate isSafelyPublished(Field f) {
-  f.isFinal() or // what about non-primitive types
+  f.isFinal() or
   f.isStatic() or
   f.isVolatile() or
   isThreadSafeType(f.getType()) or
@@ -61,11 +61,13 @@ Expr shouldBeDefaultValue(Field f) {
 Expr getDeafultValue(Field f) {
   f.getType().hasName("int") and result.(IntegerLiteral).getIntValue() = 0
   or
+  f.getType().hasName("double") and result.(DoubleLiteral).getDoubleValue() = 0.0
+  or
   f.getType().hasName("long") and result.(LongLiteral).getLiteral() = ["0", "0L"]
   or
   f.getType().hasName("boolean") and result.(BooleanLiteral).getBooleanValue() = false
   or
-  not f.getType().getName() in ["int", "long", "boolean"] and
+  not f.getType().getName() in ["int", "long", "double", "boolean"] and
   result instanceof NullLiteral
 }
 
@@ -81,6 +83,8 @@ select f, "This field is not safely published"
 /*
  * *** TODO: Detected false positives to fix ***
  *
- * 1. If value is initialized to nothing (i.e., default), then we must check that it is not updated in the constructor.
+ * 1. Look at the variable timeOfLastCommitMillis in this class: https://github.com/debezium/debezium/blob/9b4fc32d038755347f1d48cf2801308096b7a1f2/debezium-embedded/src/main/java/io/debezium/embedded/EmbeddedEngine.java#L325C18-L325C40
+ * 
+ * The variable is initiliazed as long timeOfLastCommitMillis = 0 and not changed in the constructor. However, we report an error.
  */
 
