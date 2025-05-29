@@ -46,9 +46,17 @@ Expr getDefaultValue(Field f) {
     result.(IntegerLiteral).getValue() = "0"
   )
   or
-  f.getType().hasName("float") and result.(FloatLiteral).getValue() = "0.0"
+  f.getType().hasName("float") and 
+  (
+    result.(FloatLiteral).getValue() = "0.0" or
+    result.(IntegerLiteral).getValue() = "0" 
+  )
   or
-  f.getType().hasName("double") and result.(DoubleLiteral).getValue() = "0.0"
+  f.getType().hasName("double") and 
+  (
+    result.(DoubleLiteral).getValue() = "0.0" or
+    result.(IntegerLiteral).getValue() = "0"
+  )
   or
   f.getType().hasName("char") and result.(CharacterLiteral).getCodePointValue() = 0
   or
