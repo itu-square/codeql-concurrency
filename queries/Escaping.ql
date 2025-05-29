@@ -1,26 +1,26 @@
 /**
  * @name Escaping
+ * @description In a thread-safe class, care should be taken to avoid exposing mutable state.
  * @kind problem
  * @problem.severity warning
+ * @precision high
  * @id java/escaping
+ * @tags quality
+ *       reliability
+ *       concurrency
  */
 
 import java
 import ConflictingAccess
 
-predicate isNotPrivateField(Field f) { not f.isPrivate() }
-
-predicate isNotFinal(Field f) { not f.isFinal() }
-
-predicate isFieldinThreadSafeAnnotatedClass(ClassAnnotatedAsThreadSafe c, Field f) {
-  c = annotatedAsThreadSafe() and
-  f = c.getAField()
-}
-
 from Field f, ClassAnnotatedAsThreadSafe c
 where
-  isFieldinThreadSafeAnnotatedClass(c, f) and
-  isNotFinal(f) and // final fields do not change
-  // not f.isProtected() and // I believe that protected fields are also dangerous
-  isNotPrivateField(f)
-select f, "Potentially escaping field"
+  f = c.getAField() and
+  not f.isFinal() and // final fields do not change
+  not f.isPrivate() and
+  // We believe that protected fields are also dangerous
+  // Volatile fields cannot cause data races, but it is dubious to allow changes.
+  // For now, we ignore volatile fields, but there are likely bugs to be caught here.
+  not f.isVolatile()
+select f, "The class $@ is marked as thread-safe, but this field is potentially escaping.", c,
+  c.getName()
