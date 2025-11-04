@@ -1,7 +1,0 @@
-name: codeql-concurrency/java-tests
-groups: [codeql, test]
-dependencies:
-  codeql-concurrency/java: ${workspace}
-extractor: actions
-tests: .
-warnOnImplicitThis: true

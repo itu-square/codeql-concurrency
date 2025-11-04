@@ -11,6 +11,7 @@
  */
 
 import java
+// import semmle.code.java.ConflictingAccess
 import ConflictingAccess
 
 /**
@@ -46,17 +47,9 @@ Expr getDefaultValue(Field f) {
     result.(IntegerLiteral).getValue() = "0"
   )
   or
-  f.getType().hasName("float") and 
-  (
-    result.(FloatLiteral).getValue() = "0.0" or
-    result.(IntegerLiteral).getValue() = "0" 
-  )
+  f.getType().hasName("float") and result.(FloatLiteral).getValue() = "0.0"
   or
-  f.getType().hasName("double") and 
-  (
-    result.(DoubleLiteral).getValue() = "0.0" or
-    result.(IntegerLiteral).getValue() = "0"
-  )
+  f.getType().hasName("double") and result.(DoubleLiteral).getValue() = "0.0"
   or
   f.getType().hasName("char") and result.(CharacterLiteral).getCodePointValue() = 0
   or
@@ -85,7 +78,7 @@ predicate isAssignedDefaultValue(Field f) {
 }
 
 predicate isSafelyPublished(Field f) {
-  f.isFinal() or // TODO: Consider non-primitive types
+  f.isFinal() or // NOTE: For non-primitive types, 'final' alone does not guarantee safe publication unless the object is immutable or safely constructed. Consider reviewing the handling of non-primitive fields for safe publication.
   f.isStatic() or
   f.isVolatile() or
   isThreadSafeType(f.getType()) or
