@@ -1,0 +1,6 @@
+name: codeql-concurrency/java
+version: 0.0.1
+dependencies:
+  codeql/java-all: "*"
+tests: "test/"
+extractor: java
