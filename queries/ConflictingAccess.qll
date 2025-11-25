@@ -49,6 +49,8 @@ private predicate isThreadSafeInitializer(Expr e) {
   |
     name.matches("synchronized%")
   )
+  or
+  e.(Call).getCallee().getSourceDeclaration().hasQualifiedName("java.util.concurrent", "ConcurrentHashMap", "newKeySet")
 }
 
 /**
@@ -63,10 +65,17 @@ class ExposedField extends Field {
     not this.getType() instanceof LockType and
     // field is not thread-safe
     not isThreadSafeType(this.getType()) and
-    not isThreadSafeType(this.getInitializer().getType()) and
+    not isThreadSafeType(initialValue(this).getType()) and
     // the initializer guarantees thread safety
-    not isThreadSafeInitializer(this.getInitializer())
+    not isThreadSafeInitializer(initialValue(this))
   }
+}
+
+Expr initialValue(Field f) {
+  result = f.getInitializer()
+  or
+  result = f.getAnAssignedValue() and
+  result.getEnclosingCallable() = f.getDeclaringType().getAConstructor()
 }
 
 /**
@@ -140,6 +149,7 @@ class ClassAnnotatedAsThreadSafe extends Class {
       // base case
       f.getDeclaringType() = this and
       m = e.getEnclosingCallable() and
+      //not m = this.getAConstructor() and
       a.getField() = f and
       a = e and
       (if Modification::isModifying(a) then write = true else write = false)
@@ -248,6 +258,17 @@ class ClassAnnotatedAsThreadSafe extends Class {
       this.hasOnepluslockedAccess(f, _, m, true, _)
     )
   }
+
+  predicate publicWriteAccess(ExposedField f, Expr e) {
+    this.hasUnlockedPublicAccess(f, e, _, true)
+    or
+    this.hasOnelockedPublicAccess(f, e, _, true, _)
+    or
+    exists(Method m | m.getDeclaringType() = this and m.isPublic() |
+      this.hasOnepluslockedAccess(f, e, m, true, _)
+    )
+  }
+
 
   /** Holds if the class has an access, not protected by the monitor `m`, to the field `f` via the expression `e` in the method `m`. */
   private predicate escapesMonitor(
