@@ -1,9 +1,8 @@
 /**
  * Provides classes and predicates for detecting conflicting accesses in the sense of the Java Memory Model.
  */
-// overlay[local?]
-module;
 
+// overlay[local?]
 import java
 import Concurrency
 
@@ -23,7 +22,8 @@ module Modification {
   /** Holds if the call `c` modifies a shared resource. */
   predicate isModifyingCall(Call c) {
     exists(SummarizedCallable sc, string output | sc.getACall() = c |
-      sc.propagatesFlow(_, output, _, _) and
+      // TO-DISCUSS: I added the last to _ to match the new API, but I am not sure if it correctly fixes the query
+      sc.propagatesFlow(_, output, _, _, _, _) and
       output.matches("Argument[this]%")
     )
   }
@@ -31,7 +31,7 @@ module Modification {
 
 /** Holds if the type `t` is thread-safe. */
 predicate isThreadSafeType(Type t) {
-  t.(RefType).getSourceDeclaration().getName().matches(["Atomic%", "Concurrent%"])
+  t.(RefType).getSourceDeclaration().getName().matches(["Atomic%", "Concurrent%", "Immutable%"])
   or
   t.(RefType).getSourceDeclaration().getName() = "ThreadLocal"
   or
@@ -50,7 +50,10 @@ private predicate isThreadSafeInitializer(Expr e) {
     name.matches("synchronized%")
   )
   or
-  e.(Call).getCallee().getSourceDeclaration().hasQualifiedName("java.util.concurrent", "ConcurrentHashMap", "newKeySet")
+  e.(Call)
+      .getCallee()
+      .getSourceDeclaration()
+      .hasQualifiedName("java.util.concurrent", "ConcurrentHashMap", "newKeySet")
 }
 
 /**
@@ -102,8 +105,11 @@ class ExposedFieldAccess extends FieldAccess {
  * Provides predicates to check for concurrency issues.
  */
 class ClassAnnotatedAsThreadSafe extends Class {
+  // NOTE: Original code
   ClassAnnotatedAsThreadSafe() { this.getAnAnnotation().getType().getName() = "ThreadSafe" }
 
+  // NOTE: Modification to access a concrete class
+  // ClassAnnotatedAsThreadSafe() { this.getName() = "TestEngine" }
   // We wish to find conflicting accesses that are reachable from public methods
   // and to know which monitors protect them.
   //
@@ -145,6 +151,8 @@ class ClassAnnotatedAsThreadSafe extends Class {
     ExposedField f, Expr e, Method m, ExposedFieldAccess a, boolean write
   ) {
     m.getDeclaringType() = this and
+    // [TO-DISCUSS,NOTE]: I added here as well the VisibleForTesting constraint
+    not m.getAnAnnotation().getType().getName() = "VisibleForTesting" and
     (
       // base case
       f.getDeclaringType() = this and
@@ -170,12 +178,19 @@ class ClassAnnotatedAsThreadSafe extends Class {
     this.unlockedAccess(f, e, m, _, write)
   }
 
+  // Uncomment after presentation
+  // predicate test(
+  //   Method m, string s
+  //   ) {
+  //     m.isPublic() and s = m.getAnAnnotation().getType().getName()
+  //   }
   /** Holds if the field access `a` to the field `f` is not protected by any monitor, and it can be reached via the expression `e` in the public method `m`. */
   predicate unlockedPublicAccess(
     ExposedField f, Expr e, Method m, ExposedFieldAccess a, boolean write
   ) {
     this.unlockedAccess(f, e, m, a, write) and
     m.isPublic() and
+    // not m.getAnAnnotation().getType().getName() = "VisibleForTesting" and // NOTE: Moved to the unlockAccess predicate instead (as this one is only for public methods?)
     not Monitors::locallyMonitors(e, _)
   }
 
@@ -268,7 +283,6 @@ class ClassAnnotatedAsThreadSafe extends Class {
       this.hasOnepluslockedAccess(f, e, m, true, _)
     )
   }
-
 
   /** Holds if the class has an access, not protected by the monitor `m`, to the field `f` via the expression `e` in the method `m`. */
   private predicate escapesMonitor(

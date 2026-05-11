@@ -3,7 +3,7 @@ import java.util.Set;
 
 @ThreadSafe
 public class ConcurrentHashMapUnusualInit {
-  private final Set<Integer> set;
+  private Set<Integer> set;
 
   public ConcurrentHashMapUnusualInit() {
     set = ConcurrentHashMap.newKeySet();

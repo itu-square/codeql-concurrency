@@ -1,6 +1,8 @@
 /**
  * @name Repo info Analytics
- * @id java/codeql-concurrency/analytics/all_classes
+ * @id java/codeql-concurrency/analytics/all-classes
+ * @kind metric
+ * @tags summary
  */
 
 import java

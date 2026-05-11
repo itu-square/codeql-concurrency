@@ -1,8 +1,7 @@
 // overlay[local?]
-module;
-
 import java
 import semmle.code.java.frameworks.Mockito
+import semmle.code.java.Reflection
 
 /**
  * A Java type representing a lock.
@@ -58,8 +57,12 @@ class LockType extends RefType {
  * Holds if `e` is synchronized by a local synchronized statement `sync` on the variable `v`.
  */
 predicate locallySynchronizedOn(Expr e, SynchronizedStmt sync, Variable v) {
-  e.getEnclosingStmt().getEnclosingStmt+() = sync and
-  sync.getExpr().(VarAccess).getVariable() = v
+  // NOTE: Rules out the case where the field is static, as it would lead to data race (for an instance monitor)
+  not e.(VarAccess).getVariable().isStatic() and
+  (
+    e.getEnclosingStmt().getEnclosingStmt+() = sync and
+    sync.getExpr().(VarAccess).getVariable() = v
+  )
 }
 
 /**
@@ -67,12 +70,16 @@ predicate locallySynchronizedOn(Expr e, SynchronizedStmt sync, Variable v) {
  * modifier on the enclosing (non-static) method.
  */
 predicate locallySynchronizedOnThis(Expr e, RefType thisType) {
-  exists(SynchronizedStmt sync | e.getEnclosingStmt().getEnclosingStmt+() = sync |
-    sync.getExpr().(ThisAccess).getType().(RefType).getSourceDeclaration() = thisType
-  )
-  or
-  exists(SynchronizedCallable c | c = e.getEnclosingCallable() |
-    not c.isStatic() and thisType = c.getDeclaringType()
+  // NOTE: Rules out the case where the field is static, as it would lead to data race (for an instance monitor)
+  not e.(VarAccess).getVariable().isStatic() and
+  (
+    exists(SynchronizedStmt sync | e.getEnclosingStmt().getEnclosingStmt+() = sync |
+      sync.getExpr().(ThisAccess).getType().(RefType).getSourceDeclaration() = thisType
+    )
+    or
+    exists(SynchronizedCallable c | c = e.getEnclosingCallable() |
+      not c.isStatic() and thisType = c.getDeclaringType()
+    )
   )
 }
 
@@ -84,6 +91,15 @@ predicate locallySynchronizedOnClass(Expr e, RefType classType) {
   exists(SynchronizedCallable c | c = e.getEnclosingCallable() |
     c.isStatic() and classType = c.getDeclaringType()
   )
+  or
+  exists(SynchronizedStmt sync |
+    e.getEnclosingStmt().getEnclosingStmt+() = sync and
+    sync.getExpr().(ReflectiveClassIdentifierLiteral).getReflectivelyIdentifiedClass() = classType
+  )
+}
+
+predicate test(SynchronizedStmt sync, Expr e, string name) {
+  e = sync.getExpr() and e.getAQlClass() = name
 }
 
 /**
@@ -223,6 +239,8 @@ module Monitors {
 
   /** Holds if `e` is synchronized on the `Lock` `lock` by a locking call. */
   predicate locallyLockedOn(Expr e, LockField lock) {
+    // NOTE: Rules out the case where the field is static, as it would lead to data race (for an instance monitor)
+    not e.(VarAccess).getVariable().isStatic() and
     exists(MethodCall lockCall, MethodCall unlockCall |
       lockCall = lock.getLockCall() and
       unlockCall = lock.getUnlockCall()

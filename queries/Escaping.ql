@@ -19,6 +19,8 @@ where
   f = c.getAField() and
   not f.isFinal() and // final fields do not change
   not f.isPrivate() and
+  not isThreadSafeType(f.getType()) and  
+  not isThreadSafeType(initialValue(f).getType()) and
   // We believe that protected fields are also dangerous
   // Volatile fields cannot cause data races, but it is dubious to allow changes.
   // For now, we ignore volatile fields, but there are likely bugs to be caught here.
