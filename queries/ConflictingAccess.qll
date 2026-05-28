@@ -22,8 +22,7 @@ module Modification {
   /** Holds if the call `c` modifies a shared resource. */
   predicate isModifyingCall(Call c) {
     exists(SummarizedCallable sc, string output | sc.getACall() = c |
-      // TO-DISCUSS: I added the last to _ to match the new API, but I am not sure if it correctly fixes the query
-      sc.propagatesFlow(_, output, _, _, _, _) and
+      sc.propagatesFlow(_, output, _, _) and
       output.matches("Argument[this]%")
     )
   }
