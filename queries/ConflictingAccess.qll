@@ -22,7 +22,7 @@ module Modification {
   /** Holds if the call `c` modifies a shared resource. */
   predicate isModifyingCall(Call c) {
     exists(SummarizedCallable sc, string output | sc.getACall() = c |
-      sc.propagatesFlow(_, output, _, _) and
+      sc.propagatesFlow(_, output, _, _, _, _) and
       output.matches("Argument[this]%")
     )
   }
@@ -208,7 +208,8 @@ class ClassAnnotatedAsThreadSafe extends Class {
   ) {
     //base
     this.hasUnlockedAccess(f, e, m, write) and
-    Monitors::locallyMonitors(e, monitor)
+    Monitors::locallyMonitors(e, monitor) and
+    not exists(Monitors::Monitor other | other != monitor | Monitors::locallyMonitors(e, other))
     or
     // recursive case
     exists(MethodCall c, Method m0 | this.hasOnelockedAccess(f, _, m0, write, monitor) |

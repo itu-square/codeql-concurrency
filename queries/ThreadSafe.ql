@@ -31,14 +31,11 @@ predicate notFullyMonitoredField(
   ExposedField f, string msg, ClassAnnotatedAsThreadSafe cls, string cls_name
 ) {
   (
-    // Technically there has to be a write access for a conflict to exist.
-    // But if you are locking your reads with different locks, you likely made a typo,
-    // so in this case we alert without requiring `cls.has_public_write_access(f)`
     cls.singleMonitorMismatch(f)
     or
-    cls.notFullyMonitored(f) and
-    cls.hasPublicWriteAccess(f)
+    cls.notFullyMonitored(f)
   ) and
+  cls.hasPublicWriteAccess(f) and
   msg =
     "This field is not properly synchronized in that no single monitor covers all accesses, but the class $@ is annotated as @ThreadSafe." and
   cls_name = cls.getName()

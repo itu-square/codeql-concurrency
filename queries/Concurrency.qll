@@ -189,6 +189,7 @@ module Monitors {
 
   /** Holds if the expression `e` is synchronized on the monitor `m`. */
   predicate locallyMonitors(Expr e, Monitor m) {
+    ( // base case
     exists(Variable v | v = m.(VariableMonitor).getVariable() |
       locallyLockedOn(e, v)
       or
@@ -198,6 +199,10 @@ module Monitors {
     locallySynchronizedOnThis(e, m.(InstanceMonitor).getThisType())
     or
     locallySynchronizedOnClass(e, m.(ClassMonitor).getClassType())
+    )
+    or
+    // recurse into sub expressions
+    locallyMonitors(e.getParent(), m)
   }
 
   /** Gets the control flow node that must dominate `e` when `e` is synchronized on a lock. */
