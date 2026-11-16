@@ -1,0 +1,21 @@
+WARNING: unused variable 'c' (PoisonedInternalState.ql:44,73-74)
+edges
+| PoisonedInternalState.java:11:32:11:40 | po : Object | PoisonedInternalState.java:12:9:12:10 | po | provenance |  |
+| PoisonedInternalState.java:20:28:20:35 | o : Object | PoisonedInternalState.java:21:14:21:14 | o | provenance |  |
+| PoisonedInternalState.java:24:32:24:39 | o : Object | PoisonedInternalState.java:25:26:25:26 | o : Object | provenance |  |
+| PoisonedInternalState.java:25:26:25:26 | o : Object | PoisonedInternalState.java:28:37:28:44 | o : Object | provenance |  |
+| PoisonedInternalState.java:28:37:28:44 | o : Object | PoisonedInternalState.java:29:14:29:14 | o | provenance |  |
+nodes
+| PoisonedInternalState.java:11:32:11:40 | po : Object | semmle.label | po : Object |
+| PoisonedInternalState.java:12:9:12:10 | po | semmle.label | po |
+| PoisonedInternalState.java:20:28:20:35 | o : Object | semmle.label | o : Object |
+| PoisonedInternalState.java:21:14:21:14 | o | semmle.label | o |
+| PoisonedInternalState.java:24:32:24:39 | o : Object | semmle.label | o : Object |
+| PoisonedInternalState.java:25:26:25:26 | o : Object | semmle.label | o : Object |
+| PoisonedInternalState.java:28:37:28:44 | o : Object | semmle.label | o : Object |
+| PoisonedInternalState.java:29:14:29:14 | o | semmle.label | o |
+subpaths
+#select
+| PoisonedInternalState.java:12:5:12:5 | o | PoisonedInternalState.java:11:32:11:40 | po : Object | PoisonedInternalState.java:12:9:12:10 | po | External state received via $@. | PoisonedInternalState.java:11:32:11:40 | po | flows to internal state. |
+| PoisonedInternalState.java:21:5:21:10 | this.o | PoisonedInternalState.java:20:28:20:35 | o : Object | PoisonedInternalState.java:21:14:21:14 | o | External state received via $@. | PoisonedInternalState.java:20:28:20:35 | o | flows to internal state. |
+| PoisonedInternalState.java:29:5:29:10 | this.o | PoisonedInternalState.java:24:32:24:39 | o : Object | PoisonedInternalState.java:29:14:29:14 | o | External state received via $@. | PoisonedInternalState.java:24:32:24:39 | o | flows to internal state. |

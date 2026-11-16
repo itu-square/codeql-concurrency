@@ -1,4 +1,14 @@
 edges
+| LeakingInternalState.java:20:20:20:20 | o : Object | LeakingInternalState.java:21:12:21:16 | alias | provenance |  |
+| LeakingInternalState.java:29:12:29:12 | o : Object | LeakingInternalState.java:25:12:25:25 | getReference(...) | provenance |  |
 nodes
+| LeakingInternalState.java:16:12:16:12 | o | semmle.label | o |
+| LeakingInternalState.java:20:20:20:20 | o : Object | semmle.label | o : Object |
+| LeakingInternalState.java:21:12:21:16 | alias | semmle.label | alias |
+| LeakingInternalState.java:25:12:25:25 | getReference(...) | semmle.label | getReference(...) |
+| LeakingInternalState.java:29:12:29:12 | o : Object | semmle.label | o : Object |
 subpaths
 #select
+| LeakingInternalState.java:16:12:16:12 | o | LeakingInternalState.java:16:12:16:12 | o | LeakingInternalState.java:16:12:16:12 | o | Internal state defined at $@. | LeakingInternalState.java:16:12:16:12 | o | flows to return value. |
+| LeakingInternalState.java:21:12:21:16 | alias | LeakingInternalState.java:20:20:20:20 | o : Object | LeakingInternalState.java:21:12:21:16 | alias | Internal state defined at $@. | LeakingInternalState.java:20:20:20:20 | o | flows to return value. |
+| LeakingInternalState.java:25:12:25:25 | getReference(...) | LeakingInternalState.java:29:12:29:12 | o : Object | LeakingInternalState.java:25:12:25:25 | getReference(...) | Internal state defined at $@. | LeakingInternalState.java:29:12:29:12 | o | flows to return value. |
