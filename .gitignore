@@ -1,0 +1,3 @@
+tests/*/*.testproj/*
+tests/*/*.class
+codeql-pack.lock.yml
